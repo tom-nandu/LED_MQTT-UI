@@ -7,6 +7,8 @@
 #include "pins.h"
 #include "config.h"
 #include "ledserver.h"   // This comes AFTER WebServer.h
+#include "user_roles.h"
+
 
 // Global objects
 WiFiClient espClient;
@@ -649,6 +651,10 @@ void setup() {
     Serial.println("🌐 Access your ESP32 at: http://tomfcb.local");
     Serial.println("========================================");
     setupWebServer();
+    pinMode(LED_PIN, OUTPUT);
+    Serial.begin(115200);
+
+    
   }
   if(PIN_BUTTON_ON_BOARD)
 {
