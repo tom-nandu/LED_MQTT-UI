@@ -288,8 +288,8 @@
         // ========================================
         // User Info
         // ========================================
-        const username = localStorage.getItem("username") || "Guest";
-        const role = localStorage.getItem("role") || "guest";
+        const username = localStorage.getItem("username") || "Admin";
+        const role = localStorage.getItem("role") || "admin";
         document.getElementById("userInfo").textContent = `${role.charAt(0).toUpperCase() + role.slice(1)} (${username})`;
         
         // ========================================
