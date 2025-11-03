@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <title>ESP32 LED Control</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Roboto',sans-serif
+        }
+
+        body {
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(-45deg,#05091f,#091833,#06294a,#093964,#0b4b6b);
+            background-size: 400% 400%;
+            animation: gradientBG 10s ease infinite;
+            color: #fff
+        }
+
+        @keyframes gradientBG {
+            0% {
+                background-position: 0% 50%
+            }
+
+            50% {
+                background-position: 100% 50%
+            }
+
+            100% {
+                background-position: 0% 50%
+            }
+        }
+
+        .card {
+            background: rgba(255,255,255,0.06);
+            padding: 2rem 3rem;
+            border-radius: 1rem;
+            box-shadow: 0 0 20px rgba(0,0,0,0.3);
+            text-align: center;
+            backdrop-filter: blur(8px)
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            margin-bottom: 0.3rem
+        }
+
+        h2 {
+            font-size: 0.9rem;
+            margin-bottom: 1.5rem;
+            color: #ccc
+        }
+
+        .input-group {
+            margin-bottom: 1rem;
+            text-align: left
+        }
+
+            .input-group label {
+                font-size: 0.9rem;
+                display: block;
+                margin-bottom: 0.3rem
+            }
+
+            .input-group input, .input-group select {
+                width: 100%;
+                padding: 0.6rem;
+                border: none;
+                border-radius: 0.4rem;
+                background: #504b6794;
+                color: #fff;
+                outline: none
+            }
+
+                .input-group input[type=password] {
+                    padding-right: 2.2rem
+                }
+
+        .eye {
+            position: relative;
+            cursor: pointer;
+            float: right;
+            margin-top: -1.9rem;
+            margin-right: 0.6rem;
+            font-size: 1rem;
+            color: #ccc
+        }
+
+        .btn {
+            width: 100%;
+            padding: 0.7rem;
+            border: none;
+            border-radius: 0.4rem;
+            background: #007bff;
+            color: #fff;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s all
+        }
+
+            .btn:hover {
+                background: #33a1ff;
+                box-shadow: 0 0 10px #33a1ff
+            }
+
+        .roles {
+            margin-top: 1.5rem;
+            font-size: 0.85rem;
+            text-align: left;
+            background: rgba(255,255,255,0.03);
+            padding: 0.8rem;
+            border-radius: 0.5rem
+        }
+
+            .roles ul {
+                margin-left: 1.2rem
+            }
+
+        .error {
+            color: #ff6666;
+            margin-top: 0.6rem;
+            font-size: 0.85rem;
+            min-height: 1rem;
+            text-align: center
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>ESP32 LED Control</h1>
+        <h2>Role-Based Access Control System</h2>
+        <div class="input-group"><label for="username">Username</label><input type="text" id="username" placeholder="Enter your name"></div>
+        <div class="input-group">
+            <label for="role">Select Role</label>
+            <select id="role">
+                <option value="admin">Admin</option>
+                <option value="user">User</option>
+                <option value="guest">Guest</option>
+            </select>
+        </div>
+        <div class="input-group"><label for="password">Password</label><input type="password" id="password" placeholder="Enter password"><span class="eye" id="togglePwd">👁️</span></div>
+        <button class="btn" id="loginBtn">Login</button>
+        <div class="error" id="errorMsg"></div>
+        <div class="roles">
+            <strong>Roles & Permissions:</strong>
+            <ul>
+                <li>👑 Admin → Full Control (Lights, Fans, MQTT)</li>
+                <li>🧰 User → Lights/Fans only</li>
+                <li>👁️ Guest → View-only</li>
+            </ul>
+        </div>
+    </div>
+    <script>const togglePwd = document.getElementById("togglePwd"), pwd = document.getElementById("password"), loginBtn = document.getElementById("loginBtn"), err = document.getElementById("errorMsg"); togglePwd.onclick = () => { pwd.type = pwd.type === "password" ? "text" : "password" }; loginBtn.onclick = () => { const u = document.getElementById("username").value.trim(), r = document.getElementById("role").value, p = pwd.value; if (!u || !p) { err.textContent = "Please fill all fields."; return } const valid = { admin: "admin123", user: "user123", guest: "guest123" }; if (p !== valid[r]) { err.textContent = "Invalid credentials."; return } localStorage.setItem("username", u); localStorage.setItem("role", r); document.body.style.transition = "opacity .5s"; document.body.style.opacity = "0"; setTimeout(() => { window.location.href = "dashboard_mqtt_integrated.html" }, 500) };</script>
+</body>
+</html>
