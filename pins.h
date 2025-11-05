@@ -1,3 +1,5 @@
+//PIN DIAGRAM OF OUR BOARD
+
 #ifndef PINS_H
 #define PINS_H
 
