@@ -14,6 +14,12 @@ h1{font-size:1.2rem;display:flex;align-items:center;gap:10px}
 .logout{background:#f44;color:#fff;border:none;padding:.4rem 1rem;border-radius:.4rem;cursor:pointer;transition:.3s}
 .logout:hover{background:#ff6666}
 .main{flex:1;padding:1.5rem 2rem;display:grid;grid-template-columns:1fr 360px;gap:1rem;align-items:start}
+<div class="panel" style="margin:1rem 2rem">
+  <h3>🎙️ Voice Command</h3>
+  <button onclick="startVoiceCommand()" style="padding:.6rem 1rem;border-radius:8px;background:#22d18b;color:#fff;font-weight:bold;cursor:pointer">Start Listening</button>
+  <div id="voiceResult" style="margin-top:.5rem;font-size:.9rem;color:#aefeff"></div>
+</div>
+
 @media(max-width:980px){.main{grid-template-columns:1fr}}
 .panel{background:rgba(255,255,255,0.03);padding:1rem;border-radius:12px;backdrop-filter:blur(6px)}
 .rooms{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem}
@@ -186,6 +192,45 @@ function render(){
 }
 function updateSummary(){let on=0;rooms.forEach(r=>r.devices.forEach(d=>{if(d.state)on++;}));const e=document.getElementById("summary");e.textContent=`${on} ON`;e.style.transition="transform .2s";e.style.transform="translateY(-6px)";setTimeout(()=>e.style.transform="",200);}
 function updateTemp(){const k=rooms.find(r=>r.name==="Kitchen");if(!k)return;k.temperature+=Math.random()-.5;k.temperature=parseFloat(k.temperature.toFixed(1));const e=document.getElementById("kitchenTemp");if(e)e.textContent=`🌡️ ${k.temperature.toFixed(1)} °C`;}
+
+function startVoiceCommand() {
+  const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+  recognition.lang = 'en-US';
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+
+  recognition.onresult = (event) => {
+    const voiceInput = event.results[0][0].transcript.toLowerCase();
+    document.getElementById("voiceResult").textContent = `🎤 Heard: "${voiceInput}"`;
+    sendToLLM(voiceInput);
+  };
+
+  recognition.onerror = (event) => {
+    addLog(`🎤 Voice error: ${event.error}`);
+  };
+
+  recognition.start();
+}
+
+async function sendToLLM(inputText) {
+  if (!inputText.trim()) return;
+  document.getElementById("voiceResult").textContent = "🧠 Thinking...";
+  try {
+    const res = await fetch("http://localhost:8000/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: inputText })
+    });
+    const data = await res.json();
+    const cmd = data.command;
+    document.getElementById("voiceResult").textContent = `🧠 Parsed: ${cmd}`;
+    publishMQTT(cmd);
+  } catch (err) {
+    document.getElementById("voiceResult").textContent = "⚠️ Failed to reach LLM API";
+    addLog("LLM error: " + err.message);
+  }
+}
+
 
 // ========================================
 // LOGOUT
