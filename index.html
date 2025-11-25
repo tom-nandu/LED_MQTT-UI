@@ -3,159 +3,528 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1.0">
-    <title>ESP32 LED Control</title>
+    <title>🏠 Smart Home Login</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Roboto',sans-serif
+            font-family: 'Poppins', 'Segoe UI', sans-serif;
         }
 
         body {
-            height: 100vh;
+            min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(-45deg,#05091f,#091833,#06294a,#093964,#0b4b6b);
-            background-size: 400% 400%;
-            animation: gradientBG 10s ease infinite;
-            color: #fff
+            background: #0a0e27;
+            overflow: hidden;
+            position: relative;
         }
 
-        @keyframes gradientBG {
-            0% {
-                background-position: 0% 50%
-            }
-
-            50% {
-                background-position: 100% 50%
-            }
-
-            100% {
-                background-position: 0% 50%
-            }
+        /* Animated Background */
+        .bg-animation {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            z-index: 0;
         }
 
-        .card {
-            background: rgba(255,255,255,0.06);
-            padding: 2rem 3rem;
-            border-radius: 1rem;
-            box-shadow: 0 0 20px rgba(0,0,0,0.3);
-            text-align: center;
-            backdrop-filter: blur(8px)
+        .bg-animation::before {
+            content: '';
+            position: absolute;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at 20% 50%, rgba(34, 209, 139, 0.15) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 80%, rgba(138, 43, 226, 0.15) 0%, transparent 50%),
+                        radial-gradient(circle at 40% 20%, rgba(0, 149, 255, 0.15) 0%, transparent 50%);
+            animation: float 20s ease-in-out infinite;
         }
 
-        h1 {
-            font-size: 1.8rem;
-            margin-bottom: 0.3rem
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            33% { transform: translate(30px, -30px) rotate(120deg); }
+            66% { transform: translate(-20px, 20px) rotate(240deg); }
         }
 
-        h2 {
+        /* Glowing Orbs */
+        .orb {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(60px);
+            animation: orbit 15s linear infinite;
+            opacity: 0.6;
+        }
+
+        .orb1 {
+            width: 300px;
+            height: 300px;
+            background: linear-gradient(45deg, #22d18b, #00b894);
+            top: -150px;
+            left: -150px;
+            animation: orbit 20s linear infinite;
+        }
+
+        .orb2 {
+            width: 250px;
+            height: 250px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            bottom: -125px;
+            right: -125px;
+            animation: orbit 25s linear infinite reverse;
+        }
+
+        .orb3 {
+            width: 200px;
+            height: 200px;
+            background: linear-gradient(45deg, #f093fb, #f5576c);
+            top: 50%;
+            right: -100px;
+            animation: orbit 30s linear infinite;
+        }
+
+        @keyframes orbit {
+            0% { transform: rotate(0deg) translateX(50px) rotate(0deg); }
+            100% { transform: rotate(360deg) translateX(50px) rotate(-360deg); }
+        }
+
+        /* Main Container */
+        .container {
+            position: relative;
+            z-index: 10;
+            display: flex;
+            max-width: 900px;
+            width: 90%;
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5),
+                        0 0 0 1px rgba(255, 255, 255, 0.1);
+        }
+
+        /* Left Side - Info Panel */
+        .info-panel {
+            flex: 1;
+            padding: 3rem;
+            background: linear-gradient(135deg, rgba(34, 209, 139, 0.1), rgba(0, 184, 148, 0.1));
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .info-panel::before {
+            content: '';
+            position: absolute;
+            width: 200px;
+            height: 200px;
+            background: linear-gradient(45deg, #22d18b, transparent);
+            border-radius: 50%;
+            top: -100px;
+            right: -100px;
+            opacity: 0.3;
+        }
+
+        .logo {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .info-panel h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #22d18b, #00b894);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        .info-panel p {
+            color: #94a3b8;
+            font-size: 1rem;
+            line-height: 1.6;
+            margin-bottom: 2rem;
+        }
+
+        .features {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .feature-item {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s;
+        }
+
+        .feature-item:hover {
+            background: rgba(255, 255, 255, 0.08);
+            transform: translateX(5px);
+        }
+
+        .feature-icon {
+            font-size: 1.5rem;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #22d18b, #00b894);
+            border-radius: 10px;
+        }
+
+        .feature-text {
+            color: #e2e8f0;
             font-size: 0.9rem;
-            margin-bottom: 1.5rem;
-            color: #ccc
+        }
+
+        /* Right Side - Login Form */
+        .login-panel {
+            flex: 1;
+            padding: 3rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .login-header h2 {
+            font-size: 2rem;
+            color: #f1f5f9;
+            margin-bottom: 0.5rem;
+        }
+
+        .login-header p {
+            color: #94a3b8;
+            font-size: 0.9rem;
         }
 
         .input-group {
-            margin-bottom: 1rem;
-            text-align: left
-        }
-
-            .input-group label {
-                font-size: 0.9rem;
-                display: block;
-                margin-bottom: 0.3rem
-            }
-
-            .input-group input, .input-group select {
-                width: 100%;
-                padding: 0.6rem;
-                border: none;
-                border-radius: 0.4rem;
-                background: #504b6794;
-                color: #fff;
-                outline: none
-            }
-
-                .input-group input[type=password] {
-                    padding-right: 2.2rem
-                }
-
-        .eye {
+            margin-bottom: 1.5rem;
             position: relative;
-            cursor: pointer;
-            float: right;
-            margin-top: -1.9rem;
-            margin-right: 0.6rem;
-            font-size: 1rem;
-            color: #ccc
         }
 
-        .btn {
+        .input-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #cbd5e1;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #64748b;
+            font-size: 1.2rem;
+        }
+
+        .input-group input,
+        .input-group select {
             width: 100%;
-            padding: 0.7rem;
-            border: none;
-            border-radius: 0.4rem;
-            background: #007bff;
-            color: #fff;
-            font-weight: bold;
+            padding: 0.9rem 1rem 0.9rem 3rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: #f1f5f9;
+            font-size: 1rem;
+            transition: all 0.3s;
+            outline: none;
+        }
+
+        .input-group input:focus,
+        .input-group select:focus {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: #22d18b;
+            box-shadow: 0 0 0 4px rgba(34, 209, 139, 0.1);
+        }
+
+        .input-group select {
             cursor: pointer;
-            transition: 0.3s all
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            background-size: 20px;
         }
 
-            .btn:hover {
-                background: #33a1ff;
-                box-shadow: 0 0 10px #33a1ff
-            }
+        .password-toggle {
+            position: absolute;
+            right: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            font-size: 1.2rem;
+            color: #64748b;
+            transition: all 0.3s;
+        }
 
-        .roles {
-            margin-top: 1.5rem;
-            font-size: 0.85rem;
-            text-align: left;
-            background: rgba(255,255,255,0.03);
+        .password-toggle:hover {
+            color: #22d18b;
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 1rem;
+            background: linear-gradient(135deg, #22d18b 0%, #00b894 100%);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(34, 209, 139, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-login::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn-login:hover::before {
+            left: 100%;
+        }
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(34, 209, 139, 0.4);
+        }
+
+        .btn-login:active {
+            transform: translateY(0);
+        }
+
+        .message {
+            margin-top: 1rem;
             padding: 0.8rem;
-            border-radius: 0.5rem
+            border-radius: 8px;
+            font-size: 0.9rem;
+            text-align: center;
+            font-weight: 500;
+            min-height: 2.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
-
-            .roles ul {
-                margin-left: 1.2rem
-            }
 
         .error {
-            color: #ff6666;
-            margin-top: 0.6rem;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: #fca5a5;
+        }
+
+        .success {
+            background: rgba(34, 209, 139, 0.1);
+            border: 1px solid rgba(34, 209, 139, 0.3);
+            color: #22d18b;
+        }
+
+        .demo-box {
+            margin-top: 1.5rem;
+            padding: 1rem;
+            background: rgba(255, 149, 0, 0.05);
+            border: 1px solid rgba(255, 149, 0, 0.2);
+            border-radius: 12px;
+        }
+
+        .demo-box strong {
+            color: #fbbf24;
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+
+        .demo-credentials {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
             font-size: 0.85rem;
-            min-height: 1rem;
-            text-align: center
+        }
+
+        .demo-credentials span {
+            color: #cbd5e1;
+        }
+
+        .demo-credentials code {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 0.2rem 0.5rem;
+            border-radius: 6px;
+            color: #22d18b;
+            font-family: 'Courier New', monospace;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+
+            .info-panel {
+                padding: 2rem;
+            }
+
+            .info-panel h1 {
+                font-size: 2rem;
+            }
+
+            .features {
+                display: none;
+            }
+
+            .login-panel {
+                padding: 2rem;
+            }
+        }
+
+        /* Loading Animation */
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            margin-left: 8px;
         }
     </style>
 </head>
 <body>
-    <div class="card">
-        <h1>ESP32 LED Control</h1>
-        <h2>Role-Based Access Control System</h2>
-        <div class="input-group"><label for="username">Username</label><input type="text" id="username" placeholder="Enter your name"></div>
-        <div class="input-group">
-            <label for="role">Select Role</label>
-            <select id="role">
-                <option value="admin">Admin</option>
-                <option value="user">User</option>
-                <option value="guest">Guest</option>
-            </select>
+    <!-- Background Animation -->
+    <div class="bg-animation"></div>
+    <div class="orb orb1"></div>
+    <div class="orb orb2"></div>
+    <div class="orb orb3"></div>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Left Panel - Info -->
+        <div class="info-panel">
+            <div class="logo">🏠</div>
+            <h1>Smart Home Control</h1>
+            <p>Secure IoT automation platform for modern homes. Control your devices from anywhere with our advanced ESP32 system.</p>
+            
+            <div class="features">
+                <div class="feature-item">
+                    <div class="feature-icon">💡</div>
+                    <div class="feature-text">Real-time light control with MQTT</div>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-icon">🎙️</div>
+                    <div class="feature-text">Voice command integration</div>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-icon">🔒</div>
+                    <div class="feature-text">Role-based access control</div>
+                </div>
+                <div class="feature-item">
+                    <div class="feature-icon">📊</div>
+                    <div class="feature-text">Live status monitoring</div>
+                </div>
+            </div>
         </div>
-        <div class="input-group"><label for="password">Password</label><input type="password" id="password" placeholder="Enter password"><span class="eye" id="togglePwd">👁️</span></div>
-        <button class="btn" id="loginBtn">Login</button>
-        <div class="error" id="errorMsg"></div>
-        <div class="roles">
-            <strong>Roles & Permissions:</strong>
-            <ul>
-                <li>👑 Admin → Full Control (Lights, Fans, MQTT)</li>
-                <li>🧰 User → Lights/Fans only</li>
-                <li>👁️ Guest → View-only</li>
-            </ul>
+
+        <!-- Right Panel - Login Form -->
+        <div class="login-panel">
+            <div class="login-header">
+                <h2>Welcome Back</h2>
+                <p>Enter your credentials to access the dashboard</p>
+            </div>
+
+            <form id="loginForm">
+                <div class="input-group">
+                    <label for="username">Username</label>
+                    <div class="input-wrapper">
+                        <span class="input-icon">👤</span>
+                        <input type="text" id="username" placeholder="Enter your username" autocomplete="off" required>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="role">Access Role</label>
+                    <div class="input-wrapper">
+                        <span class="input-icon">🎭</span>
+                        <select id="role" required>
+                            <option value="admin">👑 Administrator</option>
+                            <option value="user">🧰 Standard User</option>
+                            <option value="guest">👁️ Guest</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="password">Password</label>
+                    <div class="input-wrapper">
+                        <span class="input-icon">🔐</span>
+                        <input type="password" id="password" placeholder="Enter your password" required>
+                        <span class="password-toggle" id="togglePwd">👁️</span>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-login" id="loginBtn">
+                    <span id="btnText">Sign In</span>
+                </button>
+
+                <div class="message" id="message"></div>
+
+                <div class="demo-box">
+                    <strong>🔑 Demo Credentials</strong>
+                    <div class="demo-credentials">
+                        <span>Admin: <code>admin123</code></span>
+                        <span>User: <code>user123</code></span>
+                        <span>Guest: <code>guest123</code></span>
+                    </div>
+                </div>
+            </form>
         </div>
     </div>
-    <script>const togglePwd = document.getElementById("togglePwd"), pwd = document.getElementById("password"), loginBtn = document.getElementById("loginBtn"), err = document.getElementById("errorMsg"); togglePwd.onclick = () => { pwd.type = pwd.type === "password" ? "text" : "password" }; loginBtn.onclick = () => { const u = document.getElementById("username").value.trim(), r = document.getElementById("role").value, p = pwd.value; if (!u || !p) { err.textContent = "Please fill all fields."; return } const valid = { admin: "admin123", user: "user123", guest: "guest123" }; if (p !== valid[r]) { err.textContent = "Invalid credentials."; return } localStorage.setItem("username", u); localStorage.setItem("role", r); document.body.style.transition = "opacity .5s"; document.body.style.opacity = "0"; setTimeout(() => { window.location.href = "dashboard_mqtt_integrated.html" }, 500) };</script>
+
+      }, 500);
+            }, 1000);
+        };
+
+        // Auto-focus username on load
+        window.onload = () => {
+            usernameInput.focus();
+        };
+    </script>
 </body>
 </html>
