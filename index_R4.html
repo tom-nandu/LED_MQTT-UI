@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>🏠 ESP32 Smart Home Dashboard</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:'Roboto',sans-serif}
+body{background:linear-gradient(-45deg,#05142d,#08284b,#08386c,#0a4e80);background-size:400% 400%;animation:bgmove 10s ease infinite;color:#fff;min-height:100vh;display:flex;flex-direction:column}
+@keyframes bgmove{0%{background-position:0%50%}50%{background-position:100%50%}100%{background-position:0%50%}}
+header{display:flex;justify-content:space-between;align-items:center;padding:1rem 2rem;background:rgba(255,255,255,0.04);backdrop-filter:blur(6px)}
+h1{font-size:1.2rem;display:flex;align-items:center;gap:10px}
+.user-info{font-size:.9rem;color:#dbeef7}
+.logout{background:#f44;color:#fff;border:none;padding:.4rem 1rem;border-radius:.4rem;cursor:pointer;transition:.3s}
+.logout:hover{background:#ff6666}
+.main{flex:1;padding:1.5rem 2rem;display:grid;grid-template-columns:1fr 360px;gap:1rem;align-items:start}
+@media(max-width:980px){.main{grid-template-columns:1fr}}
+.panel{background:rgba(255,255,255,0.03);padding:1rem;border-radius:12px;backdrop-filter:blur(6px)}
+.rooms{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem}
+.room{background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));padding:1rem;border-radius:10px;transition:transform .2s;box-shadow:0 6px 18px rgba(2,6,23,0.6)}
+.room:hover{transform:translateY(-6px)}
+.room h2{margin-bottom:.6rem}
+.device{display:flex;align-items:center;justify-content:space-between;padding:.6rem;border-radius:8px;background:rgba(0,0,0,0.15);margin-bottom:.6rem}
+.indicator{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;color:#06121a;font-weight:700}
+.indicator.off{background:#394651;color:#9fb0c9}
+.toggle{width:46px;height:26px;border-radius:20px;background:#24323f;position:relative;cursor:pointer}
+.toggle::before{content:'';position:absolute;width:18px;height:18px;border-radius:50%;background:#dbeef7;top:4px;left:4px;transition:all .18s}
+.toggle.on{background:linear-gradient(90deg,#22d18b,#00b894)}
+.toggle.on::before{left:24px;background:#fff}
+.log{margin-top:1rem;background:rgba(255,165,0,0.12);padding:.8rem;border-radius:8px;max-height:160px;overflow:auto;border-top:3px solid rgba(255,165,0,0.6);font-size:.85rem}
+.log p{margin:.25rem 0;color:#fff}
+.temp-panel{margin-top:8px;padding:6px 10px;border-radius:8px;text-align:center;background:rgba(0,255,255,0.08);box-shadow:0 0 10px rgba(0,255,255,0.4);font-size:.9rem;color:#aefeff;font-weight:600;transition:all .3s ease}
+.buzzer-pulse{animation:pulseRed 1.2s infinite alternate}
+@keyframes pulseRed{from{box-shadow:0 0 6px #ff3333,0 0 12px #ff3333}to{box-shadow:0 0 20px #ff0000,0 0 30px #ff0000}}
+.mqtt-status{padding:.5rem;border-radius:6px;text-align:center;font-size:.85rem;margin-bottom:.5rem}
+.mqtt-connected{background:rgba(34,209,139,0.2);color:#22d18b}
+.mqtt-disconnected{background:rgba(255,68,68,0.2);color:#ff4444}
+.voice-panel{margin-top:1rem;padding:1rem;background:rgba(34,209,139,0.1);border-radius:8px}
+.voice-btn{padding:.6rem 1rem;border-radius:8px;background:#22d18b;color:#fff;font-weight:bold;cursor:pointer;border:none;width:100%;margin-bottom:.5rem;transition:.3s}
+.voice-btn:hover{background:#1ab876}
+#voiceResult{margin-top:.5rem;font-size:.9rem;color:#aefeff;min-height:20px}
+.device-info{font-size:.75rem;color:#aaa;margin-top:.2rem}
+.listening-pulse{animation:pulse 1.5s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+</style>
+</head>
+<body>
+<header>
+<h1>🏠 ESP32 Smart Home Dashboard</h1>
+<div class="user-info" id="userInfo"></div>
+<button class="logout" id="logoutBtn">Logout</button>
+</header>
+
+<div class="main">
+<div class="panel"><div class="rooms" id="rooms"></div></div>
+<div class="panel" style="display:flex;flex-direction:column;gap:12px">
+<div class="panel" style="padding:12px"><div style="font-size:.95rem">Summary</div><div id="summary" style="font-weight:700;font-size:1.3rem;margin-top:6px">0 ON</div></div>
+<div id="mqttArea" class="panel" style="padding:12px;text-align:center">
+  <div class="mqtt-status mqtt-disconnected" id="mqttStatus">🔴 MQTT Disconnected</div>
+  <div style="font-size:.8rem;color:#aaa;margin-top:.5rem" id="mqttDetails">Connecting...</div>
+</div>
+<div class="panel voice-panel">
+  <h3 style="margin-bottom:.5rem">🎙️ Voice Command</h3>
+  <button class="voice-btn" id="voiceBtn" onclick="startVoiceCommand()">🎙️ Start Listening</button>
+  <button class="voice-btn" id="continuousBtn" onclick="toggleContinuousMode()" style="background:#394651">🔄 Continuous: OFF</button>
+  <div id="voiceResult"></div>
+</div>
+<div class="panel" style="padding:12px"><div style="font-size:.95rem;margin-bottom:6px">Activity Log</div><div class="log" id="logBox"></div></div>
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+<script>
+// ========================================
+// MQTT CONFIGURATION
+// ========================================
+const MQTT_HOST = "broker.hivemq.com";
+const MQTT_PORT_WSS = 8884;
+const MQTT_TOPIC_CONTROL = "smarthome/control";
+const MQTT_TOPIC_STATUS = "smarthome/status";
+const MQTT_TOPIC_LED_CONTROL = "smarthome/led/control";
+
+let mqttClient = null;
+let mqttConnected = false;
+let reconnectTimer = null;
+
+// ========================================
+// VOICE RECOGNITION GLOBALS
+// ========================================
+let recognition = null;
+let isListening = false;
+let listeningTimeout = null;
+let autoRestartEnabled = false;
+
+// ========================================
+// USER INFO
+// ========================================
+const username = localStorage.getItem("username") || "Admin";
+const role = localStorage.getItem("role") || "admin";
+document.getElementById("userInfo").textContent = `${role.charAt(0).toUpperCase() + role.slice(1)} (${username})`;
+
+const logBox = document.getElementById("logBox");
+
+// ========================================
+// DEVICES
+// ========================================
+const rooms = [
+ { name: "Kitchen", devices: [{ id: "kitchen_light", label: "Light", color: "#34d399", state: false, isReal: true }], temperature: 26.0 },
+ { name: "Bedroom 1", devices: [{ id: "bed1_light", label: "Light", color: "#ffd166", state: false, isReal: true }]},
+ { name: "Living Hall", devices: [{ id: "living_light", label: "Light", color: "#ff4d4d", state: false, isReal: true }]},
+ { name: "LED Control", devices: [{ id: "led", label: "LED Strip", color: "#7f8cff", state: false, isReal: true }]},
+ { name: "Buzzer Control", devices: [{ id: "buzzer", label: "Buzzer", color: "#ff3333", state: false, isBuzzer: true, isReal: true }]}
+];
+
+// ========================================
+// ENHANCED VOICE RECOGNITION
+// ========================================
+function initVoiceRecognition() {
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    return null;
+  }
+  
+  const recog = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+  recog.lang = 'en-US';
+  recog.continuous = false;
+  recog.interimResults = true;
+  recog.maxAlternatives = 3;
+  
+  recog.onstart = () => {
+    isListening = true;
+    updateVoiceUI('listening');
+    addLog("🎤 Voice recognition started");
+    
+    listeningTimeout = setTimeout(() => {
+      if (isListening) {
+        recog.stop();
+        addLog("⏱️ Voice timeout (10s) - stopped listening");
+      }
+    }, 10000);
+  };
+  
+  recog.onresult = (event) => {
+    if (listeningTimeout) clearTimeout(listeningTimeout);
+    
+    const interim = Array.from(event.results)
+      .filter(result => !result.isFinal)
+      .map(result => result[0].transcript)
+      .join(' ');
+    
+    if (interim) {
+      document.getElementById("voiceResult").textContent = `🎤 Hearing: "${interim}..."`;
+    }
+    
+    const final = Array.from(event.results)
+      .filter(result => result.isFinal)
+      .map(result => result[0].transcript)
+      .join(' ');
+    
+    if (final) {
+      const voiceInput = final.toLowerCase().trim();
+      document.getElementById("voiceResult").textContent = `🎤 Heard: "${voiceInput}"`;
+      addLog(`🎤 Heard: "${voiceInput}"`);
+      
+      const success = processVoiceCommand(voiceInput);
+      
+      if (autoRestartEnabled && success) {
+        setTimeout(() => {
+          if (!isListening) startVoiceCommand();
+        }, 2000);
+      }
+    }
+  };
+  
+  recog.onerror = (event) => {
+    isListening = false;
+    updateVoiceUI('error');
+    if (listeningTimeout) clearTimeout(listeningTimeout);
+    
+    let errorMsg = '';
+    switch(event.error) {
+      case 'no-speech':
+        errorMsg = 'No speech detected';
+        if (autoRestartEnabled) setTimeout(() => startVoiceCommand(), 1500);
+        break;
+      case 'audio-capture':
+        errorMsg = 'Microphone not found';
+        break;
+      case 'not-allowed':
+        errorMsg = 'Microphone permission denied';
+        autoRestartEnabled = false;
+        document.getElementById("continuousBtn").textContent = "🔄 Continuous: OFF";
+        document.getElementById("continuousBtn").style.background = "#394651";
+        break;
+      case 'network':
+        errorMsg = 'Network error';
+        break;
+      default:
+        errorMsg = `Error: ${event.error}`;
+    }
+    
+    addLog(`🎤 Voice error: ${errorMsg}`);
+    document.getElementById("voiceResult").textContent = `⚠️ ${errorMsg}`;
+  };
+  
+  recog.onend = () => {
+    isListening = false;
+    updateVoiceUI('idle');
+    if (listeningTimeout) clearTimeout(listeningTimeout);
+    
+    if (autoRestartEnabled) {
+      setTimeout(() => startVoiceCommand(), 1000);
+    }
+  };
+  
+  return recog;
+}
+
+function startVoiceCommand() {
+  if (!recognition) {
+    recognition = initVoiceRecognition();
+    if (!recognition) {
+      document.getElementById("voiceResult").textContent = "⚠️ Voice not supported in this browser";
+      addLog("⚠️ Voice recognition not supported");
+      return;
+    }
+  }
+  
+  if (isListening) {
+    recognition.stop();
+    return;
+  }
+  
+  try {
+    recognition.start();
+  } catch (e) {
+    console.error("Recognition start failed:", e);
+    isListening = false;
+    updateVoiceUI('error');
+  }
+}
+
+function toggleContinuousMode() {
+  autoRestartEnabled = !autoRestartEnabled;
+  const btn = document.getElementById("continuousBtn");
+  
+  if (autoRestartEnabled) {
+    btn.textContent = "🔄 Continuous: ON";
+    btn.style.background = "#22d18b";
+    addLog("🔄 Continuous voice mode enabled");
+    if (!isListening) startVoiceCommand();
+  } else {
+    btn.textContent = "🔄 Continuous: OFF";
+    btn.style.background = "#394651";
+    addLog("⏸️ Continuous voice mode disabled");
+    if (isListening) recognition.stop();
+  }
+}
+
+function updateVoiceUI(state) {
+  const btn = document.getElementById("voiceBtn");
+  const result = document.getElementById("voiceResult");
+  
+  switch(state) {
+    case 'listening':
+      btn.textContent = "⏹️ Stop Listening";
+      btn.style.background = "#ff4444";
+      btn.classList.add('listening-pulse');
+      result.style.color = "#22d18b";
+      break;
+    case 'idle':
+      btn.textContent = "🎙️ Start Listening";
+      btn.style.background = "#22d18b";
+      btn.classList.remove('listening-pulse');
+      result.style.color = "#aefeff";
+      break;
+    case 'error':
+      btn.textContent = "🎙️ Start Listening";
+      btn.style.background = "#22d18b";
+      btn.classList.remove('listening-pulse');
+      result.style.color = "#ff4444";
+      break;
+  }
+}
+
+function processVoiceCommand(input) {
+  const patterns = {
+    'kitchen_light_on': [/kitchen.*on/, /turn on.*kitchen/, /kitchen.*light.*on/],
+    'kitchen_light_off': [/kitchen.*off/, /turn off.*kitchen/, /kitchen.*light.*off/],
+    'bed1_light_on': [/bed(room)?.*on/, /turn on.*bed/, /bedroom.*light.*on/],
+    'bed1_light_off': [/bed(room)?.*off/, /turn off.*bed/, /bedroom.*light.*off/],
+    'living_light_on': [/living.*on/, /hall.*on/, /turn on.*(living|hall)/],
+    'living_light_off': [/living.*off/, /hall.*off/, /turn off.*(living|hall)/],
+    'led_on': [/led.*on/, /turn on.*led/, /strip.*on/],
+    'led_off': [/led.*off/, /turn off.*led/, /strip.*off/],
+    'all_on': [/all.*on/, /turn on.*all/, /everything.*on/],
+    'all_off': [/all.*off/, /turn off.*all/, /everything.*off/],
+    'buzzer_on': [/buzz(er)?/, /alarm/, /alert/, /sound/]
+  };
+  
+  let command = null;
+  for (const [cmd, regexList] of Object.entries(patterns)) {
+    for (const regex of regexList) {
+      if (regex.test(input)) {
+        command = cmd;
+        break;
+      }
+    }
+    if (command) break;
+  }
+  
+  if (command) {
+    document.getElementById("voiceResult").textContent = `✅ Executing: ${command.replace(/_/g, ' ')}`;
+    publishMQTT(command);
+    return true;
+  } else {
+    document.getElementById("voiceResult").textContent = `❓ Unknown: "${input}"`;
+    addLog(`❓ Unknown voice command: "${input}"`);
+    return false;
+  }
+}
+
+// ========================================
+// MQTT FUNCTIONS (unchanged)
+// ========================================
+function connectMQTT() {
+ const clientId = "SmartHomeDashboard_" + Math.random().toString(16).substr(2, 8);
+ addLog(`🔌 Connecting to ${MQTT_HOST}:${MQTT_PORT_WSS}...`);
+ document.getElementById("mqttDetails").textContent = `Connecting to ${MQTT_HOST}...`;
+ 
+ mqttClient = new Paho.MQTT.Client(MQTT_HOST, MQTT_PORT_WSS, clientId);
+
+ mqttClient.onConnectionLost = (responseObject) => {
+   mqttConnected = false;
+   updateMQTTStatus(false);
+   addLog(`❌ Connection lost: ${responseObject.errorMessage}`);
+   if(reconnectTimer) clearTimeout(reconnectTimer);
+   reconnectTimer = setTimeout(connectMQTT, 5000);
+ };
+
+ mqttClient.onMessageArrived = (message) => {
+   const topic = message.destinationName;
+   const payload = message.payloadString;
+   console.log(`📥 MQTT Message [${topic}]: ${payload}`);
+   try { 
+     const data = JSON.parse(payload);
+     updateDeviceStatesFromMQTT(data);
+     addLog(`📥 Status updated from ESP32`);
+   } catch(e) { 
+     console.log("Non-JSON message:", payload);
+     addLog(`📥 ${topic}: ${payload}`);
+   }
+ };
+
+ mqttClient.connect({
+   useSSL: true,
+   timeout: 10,
+   keepAliveInterval: 60,
+   cleanSession: true,
+   onSuccess: () => {
+     mqttConnected = true;
+     updateMQTTStatus(true);
+     addLog("✅ MQTT connected successfully!");
+     mqttClient.subscribe(MQTT_TOPIC_STATUS);
+     mqttClient.subscribe(MQTT_TOPIC_CONTROL);
+     addLog(`📡 Subscribed to ${MQTT_TOPIC_STATUS}`);
+     publishMQTT("status");
+     document.getElementById("mqttDetails").textContent = `Connected to ${MQTT_HOST}`;
+   },
+   onFailure: (error) => {
+     mqttConnected = false;
+     updateMQTTStatus(false);
+     addLog(`❌ Connection failed: ${error.errorMessage}`);
+     document.getElementById("mqttDetails").textContent = `Failed: ${error.errorMessage}`;
+     if(reconnectTimer) clearTimeout(reconnectTimer);
+     reconnectTimer = setTimeout(connectMQTT, 5000);
+   }
+ });
+}
+
+function updateMQTTStatus(connected){
+ const s = document.getElementById("mqttStatus");
+ s.textContent = connected ? "🟢 MQTT Connected" : "🔴 MQTT Disconnected";
+ s.className = "mqtt-status " + (connected ? "mqtt-connected" : "mqtt-disconnected");
+}
+
+function publishMQTT(cmd){
+ if(!mqttConnected || !mqttClient){
+   addLog("⚠️ MQTT not connected - cannot send command");
+   return false;
+ }
+ try {
+   const message = new Paho.MQTT.Message(cmd);
+   message.destinationName = MQTT_TOPIC_CONTROL;
+   message.qos = 0;
+   message.retained = false;
+   mqttClient.send(message);
+   addLog(`📤 Sent: ${cmd}`);
+   console.log(`📤 Published to ${MQTT_TOPIC_CONTROL}: ${cmd}`);
+   return true;
+ } catch(e) {
+   addLog(`❌ Failed to publish: ${e.message}`);
+   return false;
+ }
+}
+
+function updateDeviceStatesFromMQTT(data){
+ ["living_light", "kitchen_light", "bed1_light", "led", "buzzer"].forEach(id => {
+   if(data[id] !== undefined){
+     const dev = findDevice(id);
+     if(dev){
+       const newState = data[id] === "on" || data[id] === true;
+       if(dev.state !== newState) dev.state = newState;
+     }
+   }
+ });
+ if(data.temperature !== undefined) {
+   const kitchen = rooms.find(r => r.name === "Kitchen");
+   if(kitchen) kitchen.temperature = parseFloat(data.temperature);
+ }
+ render();
+}
+
+function findDevice(id){
+  for(const r of rooms){
+    const d = r.devices.find(x => x.id === id);
+    if(d) return d;
+  }
+  return null;
+}
+
+function addLog(msg){
+  const t = new Date().toLocaleTimeString();
+  const p = document.createElement('p');
+  p.textContent = `[${t}] ${msg}`;
+  logBox.appendChild(p);
+  logBox.scrollTop = logBox.scrollHeight;
+  while(logBox.children.length > 50) logBox.removeChild(logBox.firstChild);
+}
+
+function render(){
+ const div = document.getElementById("rooms");
+ div.innerHTML = "";
+ let onCount = 0;
+ 
+ rooms.forEach(r => {
+   const card = document.createElement("div");
+   card.className = "room";
+   const h = document.createElement("h2");
+   h.textContent = r.name;
+   card.appendChild(h);
+   
+   r.devices.forEach(d => {
+     const dv = document.createElement("div");
+     dv.className = "device";
+     
+     const ind = document.createElement("div");
+     ind.className = "indicator " + (d.state ? "" : "off");
+     ind.style.background = d.state ? d.color : "";
+     
+     if(d.label === "Light") ind.textContent = "💡";
+     else if(d.isBuzzer) ind.textContent = "🔔";
+     else if(d.id === "led") ind.textContent = "🌈";
+     else ind.textContent = "🌀";
+     
+     const lbl = document.createElement("div");
+     lbl.innerHTML = d.label + (d.isReal ? ' <span class="device-info">ESP32</span>' : '');
+     
+     const tg = document.createElement("div");
+     tg.className = "toggle " + (d.state ? "on" : "");
+     
+     if(role === "guest"){
+       tg.style.pointerEvents = "none";
+       tg.style.opacity = 0.6;
+     } else {
+       tg.onclick = () => {
+         const newState = !d.state;
+         const cmd = `${d.id}_${newState ? "on" : "off"}`;
+         
+         if(publishMQTT(cmd)){
+           d.state = newState;
+           tg.classList.toggle("on");
+           ind.classList.toggle("off", !d.state);
+           ind.style.background = d.state ? d.color : "";
+           
+           if(d.isBuzzer && d.state){
+             ind.classList.add("buzzer-pulse");
+             setTimeout(() => {
+               d.state = false;
+               ind.classList.remove("buzzer-pulse");
+               tg.classList.remove("on");
+               ind.classList.add("off");
+               ind.style.background = "";
+             }, 2000);
+           }
+           
+           addLog(`${d.state ? "ON" : "OFF"} ${r.name} ${d.label}`);
+           updateSummary();
+         }
+       };
+     }
+     
+     dv.appendChild(ind);
+     dv.appendChild(lbl);
+     dv.appendChild(tg);
+     card.appendChild(dv);
+     
+     if(d.state) onCount++;
+   });
+   
+   if(r.name === "Kitchen" && r.temperature !== undefined){
+     const t = document.createElement("div");
+     t.className = "temp-panel";
+     t.textContent = `🌡️ ${r.temperature.toFixed(1)} °C`;
+     card.appendChild(t);
+   }
+   
+   div.appendChild(card);
+ });
+ 
+ document.getElementById("summary").textContent = `${onCount} ON`;
+}
+
+function updateSummary(){
+  let onCount = 0;
+  rooms.forEach(r => r.devices.forEach(d => { if(d.state) onCount++; }));
+  const e = document.getElementById("summary");
+  e.textContent = `${onCount} ON`;
+  e.style.transition = "transform .2s";
+  e.style.transform = "scale(1.1)";
+  setTimeout(() => e.style.transform = "scale(1)", 200);
+}
+
+document.getElementById("logoutBtn").onclick = () => {
+  if(mqttClient && mqttConnected) mqttClient.disconnect();
+  if(reconnectTimer) clearTimeout(reconnectTimer);
+  if(recognition && isListening) recognition.stop();
+  localStorage.clear();
+  location.href = "index.html";
+};
+
+function requestStatus() {
+  if(mqttConnected) publishMQTT("status");
+}
+
+render();
+connectMQTT();
+setInterval(requestStatus, 30000);
+addLog("🚀 Dashboard initialized");
+addLog(`📍 Broker: ${MQTT_HOST}:${MQTT_PORT_WSS}`);
+</script>
+</body>
+</html>
