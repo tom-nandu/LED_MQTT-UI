@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Smart Home + Weather Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+body {
+    font-family: Arial, sans-serif;
+    background: #eef2f3;
+    margin: 0;
+}
+header {
+    background: #222;
+    color: white;
+    padding: 15px;
+    font-size: 20px;
+    text-align: center;
+}
+.container {
+    padding: 20px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 15px;
+}
+.card {
+    background: white;
+    border-radius: 12px;
+    padding: 18px;
+    box-shadow: 0 0 10px #aaa;
+}
+.weather-icon {
+    width: 80px;
+}
+button {
+    padding: 12px;
+    width: 100%;
+    margin-top: 10px;
+    background: #007bff;
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-size: 16px;
+}
+button:hover {
+    background: #0056c7;
+}
+</style>
+</head>
+
+<body>
+
+<header>Smart Home + Live Weather</header>
+
+<div class="container">
+
+<!-- WEATHER PANEL -->
+<div class="card">
+    <h2>Weather</h2>
+    <img id="weatherIcon" class="weather-icon" src="">
+    <p><b>City:</b> <span id="city">--</span></p>
+    <p><b>Temperature:</b> <span id="temp">--</span> °C</p>
+    <p><b>Condition:</b> <span id="condition">--</span></p>
+    <p><b>Wind:</b> <span id="wind_speed">--</span> km/h <span id="wind_dir">--</span></p>
+    <p><b>Updated:</b> <span id="w_time">--</span></p>
+
+    <button onclick="refreshWeather()">🔄 Refresh Weather</button>
+</div>
+
+<!-- LIGHT STATUS -->
+<div class="card">
+    <h2>Devices</h2>
+    <p><b>Kitchen:</b> <span id="kitchen">--</span></p>
+    <p><b>Bedroom:</b> <span id="bedroom">--</span></p>
+    <p><b>Hall:</b> <span id="hall">--</span></p>
+    <p><b>LED:</b> <span id="led">--</span></p>
+    <p><b>Buzzer:</b> <span id="buzzer">--</span></p>
+</div>
+
+<!-- NETWORK PANEL -->
+<div class="card">
+    <h2>Network</h2>
+    <p><b>IP:</b> <span id="ip">--</span></p>
+    <p><b>MQTT:</b> <span id="mqtt">--</span></p>
+    <p><b>RSSI:</b> <span id="rssi">--</span> dBm</p>
+    <p><b>Uptime:</b> <span id="uptime">--</span> seconds</p>
+
+    <button onclick="startVoice()">🎤 Ask Weather</button>
+</div>
+
+</div>
+
+<script>
+// WEATHER ICON MAP
+const icons = {
+    "Clear sky": "https://img.icons8.com/emoji/96/sun-emoji.png",
+    "Mainly clear": "https://img.icons8.com/emoji/96/sun-emoji.png",
+    "Partly cloudy": "https://img.icons8.com/emoji/96/cloud-emoji.png",
+    "Overcast": "https://img.icons8.com/emoji/96/cloud-emoji.png",
+    "Foggy": "https://img.icons8.com/emoji/96/fog-emoji.png",
+    "Drizzle": "https://img.icons8.com/emoji/96/cloud-with-rain-emoji.png",
+    "Rain": "https://img.icons8.com/emoji/96/cloud-with-rain-emoji.png",
+    "Snow": "https://img.icons8.com/emoji/96/snowflake.png",
+    "Rain showers": "https://img.icons8.com/emoji/96/cloud-with-rain-emoji.png",
+    "Thunderstorm": "https://img.icons8.com/emoji/96/cloud-with-lightning-and-rain-emoji.png"
+};
+
+function fetchStatus() {
+    fetch("/status")
+        .then(r => r.json())
+        .then(d => {
+            // Device state
+            document.getElementById("kitchen").innerText = d.kitchen ? "ON" : "OFF";
+            document.getElementById("bedroom").innerText = d.bedroom ? "ON" : "OFF";
+            document.getElementById("hall").innerText = d.hall ? "ON" : "OFF";
+            document.getElementById("led").innerText = d.led ? "ON" : "OFF";
+            document.getElementById("buzzer").innerText = d.buzzer ? "ON" : "OFF";
+
+            // Network
+            document.getElementById("ip").innerText = d.ip;
+            document.getElementById("mqtt").innerText = d.mqtt;
+            document.getElementById("rssi").innerText = d.rssi;
+            document.getElementById("uptime").innerText = d.uptime;
+
+            // Weather (if available)
+            if (d.temperature) {
+                document.getElementById("city").innerText = d.city;
+                document.getElementById("temp").innerText = d.temperature;
+                document.getElementById("condition").innerText = d.weather;
+                document.getElementById("wind_speed").innerText = d.wind_speed;
+                document.getElementById("wind_dir").innerText = d.wind_direction;
+                document.getElementById("w_time").innerText = d.weather_update;
+
+                document.getElementById("weatherIcon").src =
+                    icons[d.weather] || icons["Clear sky"];
+            }
+
+            if (window.voiceRequested && d.temperature) {
+                speakWeather(d);
+                window.voiceRequested = false;
+            }
+        });
+}
+
+function refreshWeather() {
+    fetch("/mqtt?cmd=weather_update");
+    window.voiceRequested = false;
+}
+
+setInterval(fetchStatus, 5000);
+fetchStatus();
+
+// === VOICE CONTROL ===
+let rec;
+window.voiceRequested = false;
+
+function startVoice() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+        alert("Voice not supported");
+        return;
+    }
+
+    rec = new SR();
+    rec.lang = "en-US";
+    rec.start();
+
+    rec.onresult = function(e) {
+        let text = e.results[0][0].transcript.toLowerCase();
+
+        if (text.includes("weather") || text.includes("temperature")) {
+            window.voiceRequested = true;
+            fetch("/mqtt?cmd=weather_update");
+        }
+    };
+}
+
+function speakWeather(w) {
+    let msg = new SpeechSynthesisUtterance(
+        `The weather in ${w.city} is ${w.temperature} degrees with ${w.weather}. 
+        Wind ${w.wind_speed} kilometers per hour ${w.wind_direction}.`
+    );
+    speechSynthesis.speak(msg);
+}
+</script>
+</body>
+</html>
