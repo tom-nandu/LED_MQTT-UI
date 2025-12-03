@@ -273,7 +273,7 @@ void getWeatherData() {
 }
 
 // ============================================
-// WEATHER CODE TO DESCRIPTION
+// WEATHER CODE TO DESCRIPTION YES
 // ============================================
 String getWeatherDescription(int code) {
   switch(code) {
