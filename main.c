@@ -2,6 +2,7 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <PubSubClient.h>
+#include <Adafruit_NeoPixel.h>
 #include <ESPmDNS.h>
 #include <ArduinoJson.h>
 #include <HTTPClient.h>
@@ -14,6 +15,7 @@
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
 WebServer server(80);
+Adafruit_NeoPixel strip(NUM_LEDS, PIN_LED_WS2812_DATA, NEO_GRB + NEO_KHZ800);
 
 // ============================================
 // STATE STRUCTURES
@@ -48,7 +50,7 @@ struct WeatherData {
 unsigned long lastReconnectAttempt = 0;
 unsigned long lastStatusPublish = 0;
 unsigned long lastWeatherUpdate = 0;
-const unsigned long weatherUpdateInterval = 300000; // 5 minutes
+const unsigned long weatherUpdateInterval = 120000; // 2 minutes
 int mqttReconnectAttempts = 0;
 float latitude = 0.0;
 float longitude = 0.0;
@@ -60,6 +62,7 @@ void setupWiFi();
 void setupHardware();
 void setupWebServer();
 void setupTime();
+void testMQTTConnection();
 bool reconnectMQTT();
 void mqttCallback(char* topic, byte* payload, unsigned int length);
 void handleLightControl(String message);
@@ -114,57 +117,6 @@ void setupWiFi() {
     delay(3000);
     ESP.restart();
   }
-  Serial.println("========================================\n");
-}
-
-// ============================================
-// HARDWARE SETUP
-// ============================================
-void setupHardware() {
-  Serial.println("\n========================================");
-  Serial.println("Hardware Initialization");
-  Serial.println("========================================");
-  
-  // Relays (Active LOW)
-  pinMode(RELAY1, OUTPUT);
-  pinMode(RELAY2, OUTPUT);
-  pinMode(RELAY3, OUTPUT);
-  digitalWrite(RELAY1, HIGH); // OFF
-  digitalWrite(RELAY2, HIGH); // OFF
-  digitalWrite(RELAY3, HIGH); // OFF
-  Serial.println("✓ Relays: Kitchen(10), Bedroom(11), Hall(12)");
-  
-  // Button
-  pinMode(PIN_BUTTON_ON_BOARD, INPUT_PULLUP);
-  Serial.println("✓ Button (GPIO 4)");
-  
-  // Buzzer
-  pinMode(PIN_BUZZER, OUTPUT);
-  digitalWrite(PIN_BUZZER, LOW);
-  Serial.println("✓ Buzzer (GPIO 16)");
-  
-  // WS2812B LED
-  strip.begin();
-  strip.show();
-  strip.setBrightness(LED_BRIGHTNESS);
-  Serial.println("✓ WS2812B LED (GPIO 38)");
-  
-  // Welcome sequence
-  Serial.println("\n🧪 Hardware test...");
-  for(int i = 0; i < 3; i++) {
-    strip.setPixelColor(0, strip.Color(255, 255, 255));
-    strip.show();
-    delay(100);
-    strip.clear();
-    strip.show();
-    delay(100);
-  }
-  
-  digitalWrite(PIN_BUZZER, HIGH);
-  delay(150);
-  digitalWrite(PIN_BUZZER, LOW);
-  
-  Serial.println("✓ Test complete");
   Serial.println("========================================\n");
 }
 
@@ -359,6 +311,134 @@ String getWindDirection(int degrees) {
 }
 
 // ============================================
+// TEST MQTT CONNECTION
+// ============================================
+void testMQTTConnection() {
+  Serial.println("\n========================================");
+  Serial.println("MQTT Connection Test");
+  Serial.println("========================================");
+  
+  // Test 1: DNS Resolution
+  Serial.print("Testing DNS resolution for: ");
+  Serial.println(MQTT_BROKER);
+  
+  IPAddress brokerIP;
+  if (WiFi.hostByName(MQTT_BROKER, brokerIP)) {
+    Serial.print("✓ DNS OK - Broker IP: ");
+    Serial.println(brokerIP);
+  } else {
+    Serial.println("✗ DNS FAILED - Can't resolve broker hostname");
+    Serial.println("Possible fixes:");
+    Serial.println("  1. Check your router's DNS settings");
+    Serial.println("  2. Try broker IP directly: 91.121.93.94");
+    Serial.println("  3. Try different broker: test.mosquitto.org");
+    return;
+  }
+  
+  // Test 2: TCP Connection
+  Serial.print("Testing TCP connection to port ");
+  Serial.print(MQTT_PORT);
+  Serial.print("... ");
+  
+  WiFiClient testClient;
+  if (testClient.connect(MQTT_BROKER, MQTT_PORT)) {
+    Serial.println("✓ TCP OK");
+    testClient.stop();
+  } else {
+    Serial.println("✗ TCP FAILED - Can't reach MQTT broker");
+    Serial.println("Possible fixes:");
+    Serial.println("  1. Check firewall settings");
+    Serial.println("  2. Try port 8883 (secure) if available");
+    Serial.println("  3. Your network might block MQTT");
+    return;
+  }
+  
+  // Test 3: MQTT Connection
+  Serial.print("Testing MQTT handshake... ");
+  
+  String clientId = MQTT_CLIENT_ID;
+  clientId += String(random(0xffff), HEX);
+  
+  bool connected = false;
+  if (strlen(MQTT_USERNAME) > 0) {
+    connected = mqttClient.connect(clientId.c_str(), MQTT_USERNAME, MQTT_PASSWORD);
+  } else {
+    connected = mqttClient.connect(clientId.c_str());
+  }
+  
+  if (connected) {
+    Serial.println("✓ MQTT OK - Connection successful!");
+    mqttClient.disconnect();
+  } else {
+    Serial.print("✗ MQTT FAILED - Error code: ");
+    Serial.println(mqttClient.state());
+    Serial.println("\nError codes:");
+    Serial.println("  -4 = Connection timeout");
+    Serial.println("  -3 = Connection lost");
+    Serial.println("  -2 = Connect failed");
+    Serial.println("  -1 = Disconnected");
+    Serial.println("   1 = Bad protocol");
+    Serial.println("   2 = Bad client ID");
+    Serial.println("   3 = Unavailable");
+    Serial.println("   4 = Bad credentials");
+    Serial.println("   5 = Unauthorized");
+  }
+  
+  Serial.println("========================================\n");
+}
+
+// ============================================
+// HARDWARE SETUP
+// ============================================
+void setupHardware() {
+  Serial.println("\n========================================");
+  Serial.println("Hardware Initialization");
+  Serial.println("========================================");
+  
+  // Relays (Active LOW)
+  pinMode(RELAY1, OUTPUT);
+  pinMode(RELAY2, OUTPUT);
+  pinMode(RELAY3, OUTPUT);
+  digitalWrite(RELAY1, HIGH); // OFF
+  digitalWrite(RELAY2, HIGH); // OFF
+  digitalWrite(RELAY3, HIGH); // OFF
+  Serial.println("✓ Relays: Kitchen(10), Bedroom(11), Hall(12)");
+  
+  // Button
+  pinMode(PIN_BUTTON_ON_BOARD, INPUT_PULLUP);
+  Serial.println("✓ Button (GPIO 4)");
+  
+  // Buzzer
+  pinMode(PIN_BUZZER, OUTPUT);
+  digitalWrite(PIN_BUZZER, LOW);
+  Serial.println("✓ Buzzer (GPIO 16)");
+  
+  // WS2812B LED
+  strip.begin();
+  strip.show();
+  strip.setBrightness(LED_BRIGHTNESS);
+  Serial.println("✓ WS2812B LED (GPIO 38)");
+  
+  // Welcome sequence
+  Serial.println("\n🧪 Hardware test...");
+  for(int i = 0; i < 3; i++) {
+    strip.setPixelColor(0, strip.Color(255, 255, 255));
+    strip.show();
+    delay(100);
+    strip.clear();
+    strip.show();
+    delay(100);
+  }
+  
+  digitalWrite(PIN_BUZZER, HIGH);
+  delay(150);
+  digitalWrite(PIN_BUZZER, LOW);
+  
+  Serial.println("✓ Test complete");
+  Serial.println("========================================\n");
+}
+
+// ============================================
 // MQTT CALLBACK
 // ============================================
 void mqttCallback(char* topic, byte* payload, unsigned int length) {
@@ -381,7 +461,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 }
 
 // ============================================
-// LIGHT CONTROL HANDLER
+// LIGHT CONTROL HANDLER (MATCHING DASHBOARD)
 // ============================================
 void handleLightControl(String command) {
   command.trim();
@@ -390,30 +470,35 @@ void handleLightControl(String command) {
   Serial.print("🎛️  Processing: ");
   Serial.println(command);
   
+  // Kitchen Light (matches dashboard: kitchen_light)
   if (command == "kitchen_light_on") {
     setLight(1, true);
   }
   else if (command == "kitchen_light_off") {
     setLight(1, false);
   }
+  // Bedroom Light (matches dashboard: bed1_light)
   else if (command == "bed1_light_on") {
     setLight(2, true);
   }
   else if (command == "bed1_light_off") {
     setLight(2, false);
   }
+  // Hall/Living Light (matches dashboard: living_light)
   else if (command == "living_light_on") {
     setLight(3, true);
   }
   else if (command == "living_light_off") {
     setLight(3, false);
   }
+  // LED Control
   else if (command == "led_on") {
     setLED(true);
   }
   else if (command == "led_off") {
     setLED(false);
   }
+  // All lights control
   else if (command == "all_on") {
     setLight(1, true);
     setLight(2, true);
@@ -424,12 +509,15 @@ void handleLightControl(String command) {
     setLight(2, false);
     setLight(3, false);
   }
+  // Buzzer
   else if (command == "buzzer_on") {
     setBuzzer(true);
   }
+  // Weather update
   else if (command == "weather_update") {
     getWeatherData();
   }
+  // Status request
   else if (command == "status") {
     publishStatus();
   }
@@ -439,7 +527,7 @@ void handleLightControl(String command) {
 }
 
 // ============================================
-// LED CONTROL HANDLER
+// LED CONTROL HANDLER (ON/OFF ONLY)
 // ============================================
 void handleLEDControl(String command) {
   Serial.print("💡 LED: ");
@@ -454,12 +542,12 @@ void handleLEDControl(String command) {
     setLED(false);
   }
   else {
-    Serial.println("⚠️  Unknown LED command");
+    Serial.println("⚠️  Unknown LED command (use 'on' or 'off')");
   }
 }
 
 // ============================================
-// LIGHT CONTROL
+// LIGHT CONTROL (Active LOW relays)
 // ============================================
 void setLight(int room, bool state) {
   int pin;
@@ -487,10 +575,11 @@ void setLight(int room, bool state) {
   }
   
   *statePtr = state;
-  digitalWrite(pin, state ? LOW : HIGH);
+  digitalWrite(pin, state ? LOW : HIGH); // Active LOW
   
   Serial.printf("💡 %s %s\n", roomName, state ? "ON ✓" : "OFF");
   
+  // Visual feedback via LED
   if (state) {
     strip.setBrightness(LED_BRIGHTNESS);
     strip.setPixelColor(0, strip.Color(255, 255, 255));
@@ -506,14 +595,14 @@ void setLight(int room, bool state) {
 }
 
 // ============================================
-// LED CONTROL
+// LED CONTROL (ON/OFF ONLY)
 // ============================================
 void setLED(bool state) {
   ledState.isOn = state;
   
   if (state) {
     strip.setBrightness(ledState.brightness);
-    strip.setPixelColor(0, strip.Color(255, 255, 255));
+    strip.setPixelColor(0, strip.Color(255, 255, 255)); // White only
     strip.show();
     Serial.println("✓ LED ON");
   } else {
@@ -537,7 +626,7 @@ void setBuzzer(bool state) {
 }
 
 // ============================================
-// PUBLISH STATUS (WITH WEATHER)
+// PUBLISH STATUS (WITH WEATHER DATA)
 // ============================================
 void publishStatus() {
   if (!mqttClient.connected()) {
@@ -554,7 +643,7 @@ void publishStatus() {
   doc["rssi"] = WiFi.RSSI();
   doc["uptime"] = millis() / 1000;
   
-  // Add weather data
+  // Add weather data if available
   if (weatherData.isValid) {
     doc["temperature"] = weatherData.temperature;
     doc["weather_condition"] = weatherData.condition;
@@ -670,11 +759,14 @@ void handleStatus() {
   doc["mqtt"] = mqttClient.connected() ? "Connected" : "Disconnected";
   doc["rssi"] = WiFi.RSSI();
   
+  // Add weather data to status endpoint
   if (weatherData.isValid) {
     doc["temperature"] = weatherData.temperature;
     doc["weather"] = weatherData.condition;
     doc["wind_speed"] = weatherData.windSpeed;
+    doc["wind_direction"] = weatherData.windDir;
     doc["city"] = weatherData.cityName;
+    doc["weather_update"] = weatherData.lastUpdate;
   }
   
   char buffer[768];
@@ -707,12 +799,14 @@ void setup() {
   
   Serial.println("\n╔════════════════════════════════════════╗");
   Serial.println("║  SMART HOME + WEATHER v4.0             ║");
-  Serial.println("║  Lights + Weather Monitoring           ║");
+  Serial.println("║  Kitchen + Bedroom + Hall + Weather    ║");
+  Serial.println("║  Web + MQTT Control                    ║");
   Serial.println("╚════════════════════════════════════════╝");
   
   setupHardware();
   setupWiFi();
   setupTime();
+  testMQTTConnection();
   setupWebServer();
   
   if (MDNS.begin("smarthome")) {
@@ -730,7 +824,18 @@ void setup() {
     getWeatherData();
   }
   
-  Serial.println("\n✓ System ready!");
+  Serial.println("\n========================================");
+  Serial.println("📋 MQTT Commands:");
+  Serial.println("========================================");
+  Serial.println("mosquitto_pub -h broker.hivemq.com -t smarthome/control -m \"kitchen_light_on\"");
+  Serial.println("mosquitto_pub -h broker.hivemq.com -t smarthome/control -m \"bed1_light_on\"");
+  Serial.println("mosquitto_pub -h broker.hivemq.com -t smarthome/control -m \"living_light_on\"");
+  Serial.println("mosquitto_pub -h broker.hivemq.com -t smarthome/control -m \"all_off\"");
+  Serial.println("mosquitto_pub -h broker.hivemq.com -t smarthome/control -m \"led_on\"");
+  Serial.println("mosquitto_pub -h broker.hivemq.com -t smarthome/control -m \"buzzer_on\"");
+  Serial.println("mosquitto_pub -h broker.hivemq.com -t smarthome/control -m \"weather_update\"");
+  Serial.println("========================================\n");
+  
   randomSeed(micros());
 }
 
@@ -764,10 +869,10 @@ void loop() {
     }
   }
   
-  // Auto-update weather every 5 minutes
+  // Auto-update weather every 2 minutes
   unsigned long now = millis();
-  if (weatherData.isValid && (now - lastWeatherUpdate > weatherUpdateInterval)) {
-    Serial.println("⏰ Auto weather update...");
+  if (now - lastWeatherUpdate > weatherUpdateInterval) {
+    Serial.println("⏰ Auto weather update (2 min interval)...");
     getWeatherData();
   }
   
@@ -775,30 +880,19 @@ void loop() {
   static bool lastButtonState = HIGH;
   static unsigned long lastDebounceTime = 0;
   static int currentRoom = 1;
-  bool currentButtonState = digitalRead(PIN_BUTTON_ON_BOARD);
-  
+  bool currentButtonState = digitalRead(PIN_BUTTON_ON_BOARD); 
   if (currentButtonState != lastButtonState) {
-    lastDebounceTime = millis();
+    lastDebounceTime = now;
   }
-  
-  if ((millis() - lastDebounceTime) > 50) {
-    if (currentButtonState == LOW && lastButtonState == HIGH) {
-      bool currentState = false;
-      switch(currentRoom) {
-        case 1: currentState = deviceState.kitchenLight; break;
-        case 2: currentState = deviceState.bedroomLight; break;
-        case 3: currentState = deviceState.hallLight; break;
-      }
-      setLight(currentRoom, !currentState);
-      
-      currentRoom = (currentRoom % 3) + 1;
-      
-      digitalWrite(PIN_BUZZER, HIGH);
-      delay(50);
-      digitalWrite(PIN_BUZZER, LOW);
-    }
+  if ((now - lastDebounceTime) > 50) {
+    if (currentButtonState == LOW) {
+      bool newState = !(currentRoom == 1 ? deviceState.kitchenLight :
+                        currentRoom == 2 ? deviceState.bedroomLight :
+                        deviceState.hallLight);         
+      setLight(currentRoom, newState);    
+      currentRoom++;
+      if (currentRoom > 3) currentRoom = 1;
+    }     
   }
-  
   lastButtonState = currentButtonState;
-  delay(10);
-}
+}   
