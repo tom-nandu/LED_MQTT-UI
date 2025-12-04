@@ -53,6 +53,24 @@ h1{font-size:1.2rem;display:flex;align-items:center;gap:10px}
 .action-btn.vacation{background:linear-gradient(135deg,#ff4d4d,#cc0000);color:#fff}
 .action-btn.vacation:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(255,77,77,0.4)}
 .action-btn:disabled{opacity:0.5;cursor:not-allowed;transform:none!important}
+.weather-panel{background:linear-gradient(135deg,rgba(33,150,243,0.15),rgba(3,169,244,0.15));padding:1rem;border-radius:10px;margin-bottom:1rem;border-left:4px solid #2196f3;box-shadow:0 4px 12px rgba(33,150,243,0.2)}
+.weather-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:.8rem}
+.weather-title{font-size:1rem;font-weight:bold;color:#81d4fa}
+.weather-refresh{background:rgba(33,150,243,0.3);border:none;padding:.4rem .8rem;border-radius:6px;color:#fff;cursor:pointer;font-size:.8rem;transition:.3s}
+.weather-refresh:hover{background:rgba(33,150,243,0.5);transform:scale(1.05)}
+.weather-refresh:disabled{opacity:0.5;cursor:not-allowed}
+.weather-main{display:flex;align-items:center;gap:1rem;margin-bottom:.8rem}
+.weather-temp{font-size:2.5rem;font-weight:bold;color:#fff}
+.weather-icon{font-size:3rem}
+.weather-condition{font-size:.95rem;color:#b3e5fc;margin-bottom:.3rem}
+.weather-details{display:grid;grid-template-columns:1fr 1fr;gap:.5rem;font-size:.85rem}
+.weather-detail{background:rgba(0,0,0,0.2);padding:.5rem;border-radius:6px;display:flex;align-items:center;gap:.4rem}
+.weather-detail-icon{font-size:1.2rem}
+.weather-detail-text{color:#e1f5fe}
+.weather-location{font-size:.8rem;color:#90caf9;margin-top:.5rem;text-align:center}
+.weather-update-time{font-size:.75rem;color:#64b5f6;text-align:center;margin-top:.3rem}
+.weather-loading{text-align:center;padding:1rem;color:#81d4fa}
+.weather-error{background:rgba(244,67,54,0.2);color:#ff8a80;padding:.5rem;border-radius:6px;text-align:center;font-size:.85rem}
 </style>
 </head>
 <body>
@@ -73,6 +91,18 @@ h1{font-size:1.2rem;display:flex;align-items:center;gap:10px}
     <button class="action-btn vacation" onclick="sendCommand('all_off')">🏖️ Vacation</button>
   </div>
 </div>
+
+<!-- Weather Panel -->
+<div class="weather-panel" id="weatherPanel">
+  <div class="weather-header">
+    <div class="weather-title">🌤️ Weather</div>
+    <button class="weather-refresh" id="weatherRefreshBtn" onclick="refreshWeather()">🔄 Refresh</button>
+  </div>
+  <div id="weatherContent">
+    <div class="weather-loading">⏳ Waiting for weather data...</div>
+  </div>
+</div>
+
 <div class="time-prompt" id="timePrompt"></div>
 <div id="mqttArea" class="panel" style="padding:12px;text-align:center">
   <div class="mqtt-status mqtt-disconnected" id="mqttStatus">🔴 MQTT Disconnected</div>
@@ -104,6 +134,19 @@ let reconnectTimer = null;
 let pendingCommands = new Set();
 
 // ========================================
+// WEATHER DATA
+// ========================================
+let weatherData = {
+  temperature: null,
+  condition: null,
+  windSpeed: null,
+  windDirection: null,
+  city: null,
+  lastUpdate: null,
+  isValid: false
+};
+
+// ========================================
 // VOICE RECOGNITION GLOBALS
 // ========================================
 let recognition = null;
@@ -129,6 +172,75 @@ const rooms = [
  { name: "Living Hall", devices: [{ id: "living_light", label: "Light", color: "#ff4d4d", state: false, isReal: true }]},
  { name: "Buzzer Control", devices: [{ id: "buzzer", label: "Buzzer", color: "#ff3333", state: false, isBuzzer: true, isReal: true }]}
 ];
+
+// ========================================
+// WEATHER FUNCTIONS
+// ========================================
+function getWeatherIcon(condition) {
+  if (!condition) return "🌡️";
+  const c = condition.toLowerCase();
+  if (c.includes("clear")) return "☀️";
+  if (c.includes("partly cloudy") || c.includes("mainly clear")) return "⛅";
+  if (c.includes("cloudy") || c.includes("overcast")) return "☁️";
+  if (c.includes("rain") || c.includes("drizzle")) return "🌧️";
+  if (c.includes("snow")) return "❄️";
+  if (c.includes("thunder")) return "⛈️";
+  if (c.includes("fog")) return "🌫️";
+  return "🌤️";
+}
+
+function updateWeatherDisplay() {
+  const content = document.getElementById("weatherContent");
+  
+  if (!weatherData.isValid) {
+    content.innerHTML = '<div class="weather-loading">⏳ Waiting for weather data...</div>';
+    return;
+  }
+  
+  const icon = getWeatherIcon(weatherData.condition);
+  
+  content.innerHTML = `
+    <div class="weather-main">
+      <div class="weather-icon">${icon}</div>
+      <div>
+        <div class="weather-temp">${weatherData.temperature.toFixed(1)}°C</div>
+        <div class="weather-condition">${weatherData.condition}</div>
+      </div>
+    </div>
+    <div class="weather-details">
+      <div class="weather-detail">
+        <div class="weather-detail-icon">💨</div>
+        <div class="weather-detail-text">${weatherData.windSpeed.toFixed(1)} km/h</div>
+      </div>
+      <div class="weather-detail">
+        <div class="weather-detail-icon">🧭</div>
+        <div class="weather-detail-text">${weatherData.windDirection}</div>
+      </div>
+    </div>
+    ${weatherData.city ? `<div class="weather-location">📍 ${weatherData.city}</div>` : ''}
+    ${weatherData.lastUpdate ? `<div class="weather-update-time">Updated: ${weatherData.lastUpdate}</div>` : ''}
+  `;
+}
+
+function refreshWeather() {
+  if (!mqttConnected) {
+    addLog("⚠️ MQTT not connected - cannot refresh weather");
+    return;
+  }
+  
+  const btn = document.getElementById("weatherRefreshBtn");
+  btn.disabled = true;
+  btn.textContent = "⏳ Refreshing...";
+  
+  sendCommand("weather_update");
+  addLog("🌤️ Requesting weather update from ESP32...");
+  
+  // Re-enable button after 10 seconds
+  setTimeout(() => {
+    btn.disabled = false;
+    btn.textContent = "🔄 Refresh";
+  }, 10000);
+}
 
 // ========================================
 // TIME-BASED PROMPTS
@@ -343,7 +455,8 @@ function processVoiceCommand(input) {
     'living_light_off': [/living.*off/, /hall.*off/, /turn off.*(living|hall)/],
     'all_on': [/all.*on/, /turn on.*all/, /everything.*on/],
     'all_off': [/all.*off/, /turn off.*all/, /everything.*off/, /vacation/],
-    'buzzer_on': [/buzz(er)?/, /alarm/, /alert/, /sound/]
+    'buzzer_on': [/buzz(er)?/, /alarm/, /alert/, /sound/],
+    'weather_update': [/weather/, /update weather/, /refresh weather/, /get weather/]
   };
   
   let command = null;
@@ -369,7 +482,7 @@ function processVoiceCommand(input) {
 }
 
 // ========================================
-// COMMAND SENDING (Fixed)
+// COMMAND SENDING
 // ========================================
 function sendCommand(cmd) {
   if (!mqttConnected || !mqttClient) {
@@ -393,10 +506,8 @@ function sendCommand(cmd) {
     addLog(`📤 Sent: ${cmd}`);
     console.log(`📤 Published to ${MQTT_TOPIC_CONTROL}: ${cmd}`);
     
-    // Clear pending command after 3 seconds (ESP32 should respond by then)
     setTimeout(() => pendingCommands.delete(cmd), 3000);
     
-    // Disable all toggles briefly to prevent rapid clicking
     disableToggles(true);
     setTimeout(() => disableToggles(false), 500);
     
@@ -420,7 +531,7 @@ function disableToggles(disabled) {
 }
 
 // ========================================
-// MQTT FUNCTIONS (Fixed)
+// MQTT FUNCTIONS
 // ========================================
 function connectMQTT() {
   const clientId = "SmartHomeDashboard_" + Math.random().toString(16).substr(2, 8);
@@ -445,6 +556,7 @@ function connectMQTT() {
     try { 
       const data = JSON.parse(payload);
       updateDeviceStatesFromMQTT(data);
+      updateWeatherFromMQTT(data);
       addLog(`📥 Status updated from ESP32`);
     } catch(e) { 
       console.log("Non-JSON message:", payload);
@@ -465,7 +577,6 @@ function connectMQTT() {
       mqttClient.subscribe(MQTT_TOPIC_CONTROL);
       addLog(`📡 Subscribed to ${MQTT_TOPIC_STATUS}`);
       
-      // Request initial status from ESP32
       sendCommand("status");
       document.getElementById("mqttDetails").textContent = `Connected to ${MQTT_HOST}`;
     },
@@ -487,7 +598,7 @@ function updateMQTTStatus(connected){
 }
 
 // ========================================
-// UPDATE DEVICE STATES FROM ESP32 (Fixed)
+// UPDATE DEVICE STATES FROM ESP32
 // ========================================
 function updateDeviceStatesFromMQTT(data) {
   let stateChanged = false;
@@ -519,6 +630,46 @@ function updateDeviceStatesFromMQTT(data) {
   }
 }
 
+function updateWeatherFromMQTT(data) {
+  let weatherUpdated = false;
+  
+  if (data.temperature !== undefined) {
+    weatherData.temperature = parseFloat(data.temperature);
+    weatherUpdated = true;
+  }
+  
+  if (data.weather_condition !== undefined) {
+    weatherData.condition = data.weather_condition;
+    weatherUpdated = true;
+  }
+  
+  if (data.wind_speed !== undefined) {
+    weatherData.windSpeed = parseFloat(data.wind_speed);
+    weatherUpdated = true;
+  }
+  
+  if (data.wind_direction !== undefined) {
+    weatherData.windDirection = data.wind_direction;
+    weatherUpdated = true;
+  }
+  
+  if (data.city !== undefined) {
+    weatherData.city = data.city;
+    weatherUpdated = true;
+  }
+  
+  if (data.weather_update !== undefined) {
+    weatherData.lastUpdate = data.weather_update;
+    weatherUpdated = true;
+  }
+  
+  if (weatherUpdated) {
+    weatherData.isValid = true;
+    updateWeatherDisplay();
+    addLog("🌤️ Weather data updated");
+  }
+}
+
 function findDevice(id) {
   for(const r of rooms) {
     const d = r.devices.find(x => x.id === id);
@@ -537,7 +688,7 @@ function addLog(msg) {
 }
 
 // ========================================
-// RENDER UI (Fixed)
+// RENDER UI
 // ========================================
 function render() {
   const div = document.getElementById("rooms");
@@ -579,7 +730,6 @@ function render() {
           sendCommand(cmd);
           
           if(d.isBuzzer) {
-            // Visual feedback for buzzer
             ind.classList.add("buzzer-pulse");
             setTimeout(() => {
               ind.classList.remove("buzzer-pulse");
@@ -638,6 +788,7 @@ function requestStatus() {
 // ========================================
 render();
 updateTimePrompt();
+updateWeatherDisplay();
 connectMQTT();
 
 // Auto-sync status every 30 seconds
