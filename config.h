@@ -9,8 +9,17 @@
 // ============================================
 // WIFI CONFIGURATION
 // ============================================
-#define WIFI_SSID "ACT-ai_102757697732"
-#define WIFI_PASS "18788147"
+/ Primary WiFi
+#define WIFI_SSID_1 "Charlie"
+#define WIFI_PASS_1 "logu9769"
+
+// Secondary WiFi (Fallback)
+#define WIFI_SSID_2 "tom"
+#define WIFI_PASS_2 "tttttttt"
+
+// Keep these for backward compatibility
+#define WIFI_SSID WIFI_SSID_1
+#define WIFI_PASS WIFI_PASS_1
 
 // ============================================
 // MQTT CONFIGURATION (Matching Dashboard)
