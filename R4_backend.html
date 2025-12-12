@@ -1,4 +1,10 @@
 <!DOCTYPE html>
+<script>
+if (!sessionStorage.getItem("loggedIn")) {
+    window.location.href = "R4_login.html";
+}
+</script>
+
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -119,7 +125,9 @@ h1{font-size:1.2rem;display:flex;align-items:center;gap:10px}
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+  
 <script>
+  
 // ========================================
 // MQTT CONFIGURATION
 // ========================================
@@ -803,21 +811,5 @@ addLog(`📍 Broker: ${MQTT_HOST}:${MQTT_PORT_WSS}`);
 </body>
 </html>
 
-<script>
-function login() {
-    const username = document.getElementById("username").value;
-    const password = document.getElementById("password").value;
 
-    // Simple demo login (replace with backend API later)
-    if (username === "admin" && password === "admin123") {
-        // Save login session
-        sessionStorage.setItem("loggedIn", "true");
-
-        // Redirect to backend page
-        window.location.href = "R4_backend.html";
-    } else {
-        alert("Invalid username or password");
-    }
-}
-</script>
 
