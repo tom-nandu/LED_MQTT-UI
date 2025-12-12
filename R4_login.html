@@ -885,5 +885,22 @@
             }
         };
     </script>
+    <script>
+function login() {
+    const username = document.getElementById("username").value;
+    const password = document.getElementById("password").value;
+
+    // Simple demo login (replace with backend API later)
+    if (username === "admin" && password === "admin123") {
+        // Save login session
+        sessionStorage.setItem("loggedIn", "true");
+
+        // Redirect to backend page
+        window.location.href = "R4_backend.html";
+    } else {
+        alert("Invalid username or password");
+    }
+}
+</script>
 </body>
 </html>
